@@ -16,6 +16,7 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.view.KeyEvent;
@@ -244,12 +245,13 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         leanbackPackages = tvPackages;
         Set<String> added = LibraryApps.load(ctx);
         Set<String> removed = LibraryApps.loadRemoved(ctx);
-        if (!added.isEmpty()) {
-            Set<String> seen = new HashSet<>(tvPackages);
-            for (ResolveInfo ri : pm.queryIntentActivities(
-                    new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)) {
-                if (ri.activityInfo != null && added.contains(ri.activityInfo.packageName)
-                        && seen.add(ri.activityInfo.packageName)) found.add(ri);
+        Set<String> dockLookups = new HashSet<>(favourites);
+        Set<String> seenLauncher = new HashSet<>(tvPackages);
+        for (ResolveInfo ri : pm.queryIntentActivities(
+                new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)) {
+            if (ri.activityInfo != null && seenLauncher.add(ri.activityInfo.packageName)) {
+                found.add(ri);
+                tvPackages.add(ri.activityInfo.packageName);
             }
         }
         Map<String, Cards.Card> cardByPkg = new HashMap<>();
@@ -261,8 +263,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         for (ResolveInfo ri : found) {
             if (ri.activityInfo == null) continue;
             String pkg = ri.activityInfo.packageName;
-            if (pkg.equals(ctx.getPackageName()) || !ri.activityInfo.exported
-                    || !LibraryApps.visible(tvPackages.contains(pkg), hidden.contains(pkg), added.contains(pkg), removed.contains(pkg))) continue;
+            boolean isFav = favourites.contains(pkg);
+            if (pkg.equals(ctx.getPackageName()) || !ri.activityInfo.exported) continue;
+            if (!isFav && !LibraryApps.visible(tvPackages.contains(pkg), hidden.contains(pkg), added.contains(pkg), removed.contains(pkg))) continue;
             ComponentName component = new ComponentName(pkg, ri.activityInfo.name);
             Cards.Card card = cardByPkg.get(pkg);
             if (card != null && !card.component.equals(component)) continue;   // the card stands in for this tile
@@ -306,6 +309,12 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
         docked = 0;
         while (docked < fresh.size() && isDocked(fresh.get(docked))) docked++;
+        for (int i = 0; i < docked; i++) {
+            android.util.Log.i("TvHome", "Docked tile [" + i + "]: " + fresh.get(i).label + " (" + fresh.get(i).pkg + ")");
+        }
+        for (int i = docked; i < fresh.size(); i++) {
+            android.util.Log.i("TvHome", "Grid tile: " + fresh.get(i).label + " (" + fresh.get(i).pkg + ")");
+        }
         emptySlots = dockRow && !reordering ? DockSlots.empty(docked, dockSize, fresh.size(), fillDock) : 0;
         for (int i = 0; i < emptySlots; i++) {
             fresh.add(docked + i, new Entry(Entry.EMPTY, "", new ComponentName(ctx, "empty-dock-slot-" + i),
@@ -452,8 +461,13 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         });
     }
 
+    public static volatile long lastLaunchTime = 0;
+    public static volatile String lastLaunchedPkg = null;
+
     /** Opens the tile's activity by explicit component, with no extras: a card can name nothing else. */
     private void launch(Entry e) {
+        lastLaunchTime = SystemClock.uptimeMillis();
+        lastLaunchedPkg = e.pkg;
         if (e.kind == Entry.HOME_SETTINGS) {
             ctx.startActivity(new Intent(ctx, HomeSettingsActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -467,9 +481,20 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (leanbackPackages.contains(e.pkg)) i.addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         String action = launchActions.get(e.pkg);
         if (action != null) {
-            Intent byAction = new Intent(action).setPackage(e.pkg)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-            if (ctx.getPackageManager().resolveActivity(byAction, 0) != null) i = byAction;
+            Intent custom = null;
+            if (action.contains("/")) {
+                ComponentName cn = ComponentName.unflattenFromString(action);
+                if (cn != null) {
+                    custom = new Intent(Intent.ACTION_MAIN).setComponent(cn)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                }
+            } else {
+                custom = new Intent(action).setPackage(e.pkg)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            }
+            if (custom != null && ctx.getPackageManager().resolveActivity(custom, 0) != null) {
+                i = custom;
+            }
         }
         try {
             ctx.startActivity(i);

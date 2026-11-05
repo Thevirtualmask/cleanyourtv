@@ -70,6 +70,19 @@ Debloat
   still unclear.
 - Before touching streaming apps, voice assistant, Chromecast, Miracast or the update service, ask me
   which ones I use with a checklist question and disable only what I don't tick.
+- On operator set-top boxes and TV sets with an integrated physical tuner (DTT / DVB-T / DVB-S / DVB-C,
+  such as the TIM Box uzw4010tim, Freebox, Vodafone TV, etc.), the operator's stock launcher often
+  doubles as both the Home screen and the hardware TV tuner player. Check whether a physical antenna/tuner
+  is in use, and ask me which setup I want:
+  1. Complete Debloat (Pure Clean): Disable the operator launcher entirely (`pm disable-user --user 0 <stock_launcher>`).
+     CleanYourTV is the sole native launcher with instant 0ms Home response. For live television, use
+     streaming IPTV apps (like OpenTV).
+  2. Hybrid DTT Setup (Keep Antenna TV): Keep the operator package enabled so physical DVB-T antenna
+     tuning and channel playback continue working smoothly. Configure CleanYourTV's `HomeKeyService` with
+     window overlay, key interception, and task reordering (`restore_key_services: true`, `SYSTEM_ALERT_WINDOW`,
+     `WRITE_SECURE_SETTINGS`) so pressing the remote's HOME button returns directly to CleanYourTV without
+     flashing the operator's launcher, while placing a "Digitale Terrestre" tile in the dock and the tuner scan
+     app (e.g. `com.technicolor.android.dtvscan.project`) below the dock in the grid.
 - Run `pm` commands one per shell call, chained commands may silently stop after the first.
 - If `pm disable-user` is refused for every package, stop and tell me: some firmware (Fire OS 5 on a
   Fire TV Box, for one) refuses `pm disable-user` with a `SecurityException`, `pm uninstall --user 0`
@@ -141,6 +154,23 @@ Launcher
   A button the TV logs as `KEY_UNKNOWN` or `KEY_PROGRAM` cannot be matched by keycode, since every
   unmapped button shares it: read the scancode with `getevent -lt` and use `settings_key_scancodes`,
   which only `config.xml` carries (a theme can set keycodes, not scancodes).
+- In a Hybrid DTT setup (where the operator launcher remains enabled for physical antenna TV), Android's
+  `chooseBestActivity()` prioritizes the stock launcher's HOME intent-filter (`priority > 0`) over
+  sideloaded launchers, and Android TV's `stopAppSwitches` locks out background activity transitions for
+  5 seconds when HOME is dispatched. To solve this cleanly without root:
+  1. Declare `REORDER_TASKS` and `SYSTEM_ALERT_WINDOW` in CleanYourTV's `AndroidManifest.xml`.
+  2. Grant `WRITE_SECURE_SETTINGS` (`pm grant com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS`)
+     and `SYSTEM_ALERT_WINDOW` (`appops set com.gathin.tvhome SYSTEM_ALERT_WINDOW allow`).
+  3. Enable `HomeKeyService` in secure settings (`settings put secure enabled_accessibility_services com.gathin.tvhome/.HomeKeyService`
+     and `settings put secure accessibility_enabled 1`), and ensure `"restore_key_services": true` is set
+     in `config.json` so the service auto-restores if the launcher is ever force-stopped.
+  4. In `HomeKeyService`, when the operator launcher is detected in `onAccessibilityEvent` and was not
+     intentionally opened by the user (`!recent && !isPlayer`), immediately display a full-screen black
+     overlay to occlude the operator screen in <10ms, bring CleanYourTV to front via
+     `ActivityManager.moveTaskToFront(MainActivity.sTaskId, ActivityManager.MOVE_TASK_WITH_HOME)`, and
+     dismiss the overlay once CleanYourTV resumes. In `AppAdapter`, track intentional launches
+     (`lastLaunchTime`, `lastLaunchedPkg`) so clicking the DTT tile in CleanYourTV dock opens the live TV
+     player without getting blocked.
 - On Android 11 and newer the launcher must declare `<queries>` for `android.intent.category.LEANBACK_LAUNCHER`,
   or package visibility silently hides every app and the grid comes up empty; target a recent SDK, some
   Google TV 14 sets refuse older targets at install.
@@ -182,5 +212,6 @@ Verify
 
 ---
 
-Expect to answer three or four checklist questions (which apps you use, the dock size and app order,
-whether to keep the voice assistant, Chromecast and firmware updates). Everything is reversible.
+Expect to answer three or four checklist questions (which apps you use, whether to keep the physical
+DTT antenna tuner in hybrid mode or do a complete debloat, the dock size and app order, whether to
+keep the voice assistant, Chromecast and firmware updates). Everything is reversible.

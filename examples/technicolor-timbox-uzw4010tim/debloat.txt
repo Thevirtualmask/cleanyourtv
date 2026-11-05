@@ -1,0 +1,93 @@
+# TIM Box (Technicolor Jade, uzw4010tim)
+# Android TV 8.0.0 Oreo (API 26), Technicolor / Telecom Italia (TIM)
+#
+# Hardware: Synaptics/Broadcom BG4CT SoC, 2 GB RAM, 8 GB Flash, integrated DVB-T/T2 Tuner.
+#
+# All packages are disabled safely using `pm disable-user --user 0 <pkg>`.
+# Nothing is uninstalled from system partitions; everything is 100% reversible.
+#
+# TWO MODES FOR TIMVISION LAUNCHER & LIVE TV:
+#
+# MODE 1 - COMPLETE DEBLOAT (Pure Clean):
+# Disable `timvision.launcher` below. CleanYourTV is the single native launcher
+# with 0ms Home response. For live television, use streaming IPTV apps like OpenTV
+# (already preloaded in dock slot 3).
+#
+# MODE 2 - HYBRID DTT SETUP (Keep Antenna TV):
+# Keep `timvision.launcher` enabled (comment it out below). CleanYourTV handles
+# the physical remote HOME button via HomeKeyService (instant 8ms overlay and
+# task reordering so TIM launcher is never visible), and clicking "Digitale Terrestre"
+# in the CleanYourTV dock opens the antenna TV player directly.
+
+# --- Operator Telemetry, Tracking & Remote Management ---
+timvision.telemetry                     # TIMVISION usage analytics and telemetry
+it.telecomitalia.digitalsupport          # TIM diagnostic and support agent
+it.telecomitalia.linemanager             # Operator line management daemon
+com.movenda.omadm.tv                    # OMA-DM remote device management
+com.movenda.p4mcore                     # OMA-DM client core
+tv.broadpeak.nanocdnwrapper             # Broadpeak nanoCDN multicast streaming daemon
+com.technicolor.zta                     # Technicolor Zero-Touch Automated provisioning
+com.technicolor.android.BootupTraceQR   # QR code boot trace logger
+
+# --- Operator Bloatware, Forced Services & Ads ---
+com.technicolor.autoperiodicreboot      # Forced periodic scheduled reboot daemon
+it.telecomitalia.thefilmclub            # The Film Club promotional app
+it.telecomitalia.games                  # TIMGAMES store and streaming portal
+it.telecomitalia.timmusic_tv            # TIMMUSIC audio streaming
+it.telecomitalia.timppapp               # TIM promotional banner app
+com.technicolor.tim.customization       # Operator branding and lockscreen customization
+com.technicolor.project.releasenote     # Pop-up release notes
+android.autoinstalls.config.technicolor # Silent background partner app installer
+com.figc.vivoazzurrotv                  # Vivo Azzurro TV promo app
+it.rds.androidtv.rdssocialtv            # RDS Social TV preload
+com.cbs.ca                              # CBS / Paramount preload
+com.upst.hayu                           # Hayu reality TV preload
+
+# --- Commercial Streaming Preloads (Disable if unused or using third-party alternatives) ---
+com.netflix.ninja                       # Netflix stock app
+com.amazon.amazonvideo.livingroom       # Amazon Prime Video stock app
+com.disney.disneyplus                   # Disney+ stock app
+com.dazn                                # DAZN sports streaming
+com.wbd.stream                          # Discovery+ / Max
+com.apple.atve.androidtv.appletv        # Apple TV stock app
+it.mediaset.infinitytv                  # Mediaset Infinity
+tv.pluto.android                        # Pluto TV
+
+# --- Google Stock Apps & Ad Services ---
+com.google.android.youtube.tv           # Official YouTube with unskippable ads (replace with SmartTube)
+com.google.android.youtube.tvkids       # YouTube Kids
+com.google.android.youtube.tvmusic      # YouTube Music
+com.google.android.play.games           # Google Play Games
+com.google.android.videos               # Google Play Movies & TV
+com.google.android.tvtutorials          # Google TV tutorials
+com.google.android.tvrecommendations    # Google leanback ad and recommendation rows
+com.google.android.leanbacklauncher.recommendations # Leanback launcher recommendations
+com.google.android.feedback             # Google crash reporting and user feedback
+
+# --- Stock Operator Launcher (Choose Mode 1 or Mode 2) ---
+# Uncomment the line below for MODE 1 (Complete Debloat).
+# Leave commented out for MODE 2 (Hybrid DTT Setup with CleanYourTV HomeKeyService).
+# timvision.launcher
+
+# ==============================================================================
+# DO NOT DISABLE - CRITICAL HARDWARE & SYSTEM PACKAGES:
+#
+# DTT Tuner & Hardware Video:
+#   com.technicolor.android.dtvinput       - Android TV Input Framework (TIF) tuner driver
+#   com.technicolor.android.dtvscan.project - Channel scan and frequency tuner engine
+#   com.technicolor.android.cas.provider   - Conditional Access System (CAS) provider
+#   com.android.providers.tv               - System TV channel and EPG database
+#
+# Hardware Remote & Bluetooth:
+#   com.technicolor.android.remotecontrolservice - TIM Box Bluetooth remote service
+#   com.technicolor.tv.remotepairing       - Remote pairing wizard
+#   com.technicolor.globalkey              - Dedicated remote button mapper (TV key 170)
+#
+# Core System Services:
+#   com.google.android.katniss             - Google Assistant (remote microphone voice search)
+#   com.google.android.apps.mediashell     - Chromecast built-in (Google Cast receiver)
+#   com.android.vending                    - Google Play Store
+#   com.google.android.gms                 - Google Play Services
+#   com.google.android.inputmethod.latin   - On-screen keyboard (Gboard / LatinIME)
+#   com.android.tv.settings                - TV Settings menu
+# ==============================================================================

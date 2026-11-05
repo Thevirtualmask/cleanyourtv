@@ -1,21 +1,38 @@
 package com.gathin.tvhome;
 
 import android.accessibilityservice.AccessibilityService;
+import android.app.ActivityManager;
+import android.app.ActivityOptions;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.PixelFormat;
+import android.os.Build;
+import android.util.Log;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.os.UserManager;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.provider.Settings;
 import android.view.KeyEvent;
+import android.view.View;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,10 +66,30 @@ public class HomeKeyService extends AccessibilityService {
     private BroadcastReceiver unlockReceiver;
     /** The stock launcher's HOME activities (stock_home_redirect), disabled ones included. */
     private final Set<String> stockHome = new HashSet<>();
+    private static volatile HomeKeyService sInstance = null;
+    private View overlayView = null;
+
+    public static void dismissOverlay() {
+        HomeKeyService instance = sInstance;
+        if (instance != null) {
+            instance.hideOverlay();
+        }
+    }
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        sInstance = this;
+        android.accessibilityservice.AccessibilityServiceInfo info = getServiceInfo();
+        if (info == null) {
+            info = new android.accessibilityservice.AccessibilityServiceInfo();
+        }
+        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+        info.feedbackType = android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_GENERIC;
+        info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+        info.notificationTimeout = 50;
+        setServiceInfo(info);
+
         settingsScancodes = getResources().getIntArray(R.array.settings_key_scancodes);
         // The service is directBootAware: Android 11 skips a service that is not while the user is still
         // locked at boot, writes accessibility_enabled=0 and, on TCL G03 firmware, never binds it after the
@@ -85,6 +122,8 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        sInstance = null;
+        hideOverlay();
         stopWaitingForUnlock();
         super.onDestroy();
     }
@@ -106,6 +145,11 @@ public class HomeKeyService extends AccessibilityService {
             Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(config.stockHomeRedirect);
             for (ResolveInfo ri : getPackageManager().queryIntentActivities(home, PackageManager.MATCH_DISABLED_COMPONENTS)) {
                 stockHome.add(ri.activityInfo.name);
+            }
+            if ("com.amazon.tv.launcher".equals(config.stockHomeRedirect)) {
+                stockHome.add("com.amazon.tv.launcher.ui.HomeActivity_vNext");
+                stockHome.add("com.amazon.tv.launcher.ui.HomeActivity");
+                stockHome.add("com.amazon.firehomestarter.HomeStarterActivity");
             }
         }
         holdAppKeys = RemoteKeys.parseHoldAppKeys(config.appKeys);
@@ -139,15 +183,128 @@ public class HomeKeyService extends AccessibilityService {
         }
         if (RemoteKeys.handle(this, event, appKeys.get(event.getKeyCode()),
                 holdAppKeys.get(event.getKeyCode()))) return true;
-        if (event.getKeyCode() != KeyEvent.KEYCODE_ALL_APPS) return false;
+        if (event.getKeyCode() != KeyEvent.KEYCODE_ALL_APPS && event.getKeyCode() != KeyEvent.KEYCODE_HOME) return false;
         if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
-            Intent home = new Intent(Intent.ACTION_MAIN)
-                    .addCategory(Intent.CATEGORY_HOME)
-                    .setPackage(getPackageName())
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-            startActivity(home);
+            showOverlayAndReturn();
         }
         return true;
+    }
+
+    private synchronized void showOverlayAndReturn() {
+        Log.i("TvHome.Key", "showOverlayAndReturn invoked");
+        new Handler(Looper.getMainLooper()).post(() -> {
+            try {
+                WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                if (wm != null && overlayView == null) {
+                    FrameLayout fl = new FrameLayout(this);
+                    fl.setBackgroundColor(0xFF000000);
+                    int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                            : WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
+                    WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                            WindowManager.LayoutParams.MATCH_PARENT,
+                            WindowManager.LayoutParams.MATCH_PARENT,
+                            type,
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                            PixelFormat.OPAQUE);
+                    wm.addView(fl, lp);
+                    overlayView = fl;
+                    Log.i("TvHome.Key", "Black overlay added to WindowManager");
+                }
+            } catch (Exception e) {
+                Log.e("TvHome.Key", "Failed to add overlay", e);
+            }
+
+            returnToCleanYourTv();
+        });
+    }
+
+    public synchronized void hideOverlay() {
+        if (overlayView != null) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                try {
+                    WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                    if (wm != null && overlayView != null) {
+                        wm.removeView(overlayView);
+                        overlayView = null;
+                        Log.i("TvHome.Key", "Overlay removed");
+                    }
+                } catch (Exception e) {
+                    Log.e("TvHome.Key", "Failed to remove overlay", e);
+                }
+            });
+        }
+    }
+
+    private void returnToCleanYourTv() {
+        Log.i("TvHome.Key", "Returning to CleanYourTV");
+
+        // 1. Move CleanYourTV task to front
+        try {
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (am != null) {
+                int taskId = MainActivity.sTaskId;
+                if (taskId != -1) {
+                    Log.i("TvHome.Key", "Moving MainActivity.sTaskId=" + taskId + " to front");
+                    am.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME);
+                } else {
+                    List<ActivityManager.RunningTaskInfo> tasks = am.getRunningTasks(20);
+                    if (tasks != null) {
+                        for (ActivityManager.RunningTaskInfo task : tasks) {
+                            if (task.baseActivity != null && "com.gathin.tvhome".equals(task.baseActivity.getPackageName())) {
+                                Log.i("TvHome.Key", "Found task id=" + task.id + ", moving to front");
+                                am.moveTaskToFront(task.id, ActivityManager.MOVE_TASK_WITH_HOME);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e("TvHome.Key", "moveTaskToFront failed", e);
+        }
+
+        // 2. Immediate startActivity
+        Intent home = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        try {
+            startActivity(home);
+        } catch (Exception e) {
+            Log.e("TvHome.Key", "startActivity immediate failed", e);
+        }
+
+        // 3. Retries up to past the stopAppSwitches window (5000ms)
+        scheduleTaskCheck(150);
+        scheduleTaskCheck(350);
+        scheduleTaskCheck(750);
+        scheduleTaskCheck(1500);
+        scheduleTaskCheck(3000);
+        scheduleTaskCheck(5100);
+        new Handler(Looper.getMainLooper()).postDelayed(this::hideOverlay, 5500);
+    }
+
+    private void scheduleTaskCheck(int delayMs) {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                if (am != null) {
+                    List<ActivityManager.RunningTaskInfo> tasks = am.getRunningTasks(1);
+                    if (tasks != null && !tasks.isEmpty()) {
+                        ComponentName top = tasks.get(0).topActivity;
+                        if (top != null && "com.gathin.tvhome".equals(top.getPackageName())) {
+                            hideOverlay();
+                            return; // CleanYourTV is already on top!
+                        }
+                    }
+                    int taskId = MainActivity.sTaskId;
+                    if (taskId != -1) {
+                        am.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME);
+                    }
+                    startActivity(new Intent(this, MainActivity.class)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
+                }
+            } catch (Exception ignored) {}
+        }, delayMs);
     }
 
     /** Unbound by Android: the user turned the helper off, so Home doesn't put it back (ServiceRepair). */
@@ -159,12 +316,36 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // stock_home_redirect: the firmware turned the stock launcher back on and its home screen came up.
-        if (stockHome.isEmpty() || event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence cls = event.getClassName();
-        if (cls != null && stockHome.contains(cls.toString())) {
-            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(getPackageName())
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
+        CharSequence pkg = event.getPackageName();
+        if (pkg == null) return;
+        String pkgStr = pkg.toString();
+        String clsStr = cls != null ? cls.toString() : "";
+
+        // On TIM Box, timvision.launcher is the system priv-app home.
+        // If it comes up and was NOT recently launched by the user, return to CleanYourTV.
+        if ("timvision.launcher".equals(pkgStr)) {
+            long elapsed = SystemClock.uptimeMillis() - AppAdapter.lastLaunchTime;
+            boolean recent = elapsed < 4000 && "timvision.launcher".equals(AppAdapter.lastLaunchedPkg);
+            Log.i("TvHome.Key", "timvision event: cls=" + clsStr + " elapsed=" + elapsed + " recent=" + recent);
+            if (!recent && !clsStr.contains("Player")) {
+                Log.i("TvHome.Key", "Intercepting timvision: covering and returning to CleanYourTV");
+                showOverlayAndReturn();
+                return;
+            }
+        }
+
+        // stock_home_redirect: the firmware turned the stock launcher back on and its home screen came up.
+        if (stockHome.isEmpty()) return;
+        boolean match = cls != null && stockHome.contains(clsStr);
+        if (!match && "com.amazon.tv.launcher".equals(pkgStr)) {
+            if (clsStr.contains("HomeActivity") || clsStr.contains("HomeStarterActivity")) {
+                match = true;
+            }
+        }
+        if (match) {
+            showOverlayAndReturn();
         }
     }
 

@@ -1,0 +1,20 @@
+{
+  "dock_apps": [
+    "com.stremio.one",
+    "org.smarttube.beta",
+    "com.nst.iptvsmarterstvbox",
+    "com.nordvpn.android"
+  ],
+  "columns": 4,
+  "app_labels": [
+    "com.stremio.one=Stremio",
+    "org.smarttube.beta=SmartTube",
+    "com.nst.iptvsmarterstvbox=IPTV Smarters",
+    "com.nordvpn.android=NordVPN"
+  ],
+  "vpn_app": "com.nordvpn.android",
+  "stock_home_redirect": "com.amazon.tv.launcher",
+  "rows_below_dock": 0,
+  "background_color": "#000000",
+  "wallpaper": false
+}
