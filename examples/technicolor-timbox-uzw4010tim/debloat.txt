@@ -38,6 +38,9 @@ it.telecomitalia.timppapp               # TIM promotional banner app
 com.technicolor.tim.customization       # Operator branding and lockscreen customization
 com.technicolor.project.releasenote     # Pop-up release notes
 android.autoinstalls.config.technicolor # Silent background partner app installer
+com.technicolor.app.ota                 # Technicolor ApplicationOta: silent background partner APK downloader & store agent
+timvision.setup_wizard                  # TIMVISION setup wizard
+com.google.android.partnersetup         # Google Partner Setup (forces partner apps from Play Store)
 com.figc.vivoazzurrotv                  # Vivo Azzurro TV promo app
 it.rds.androidtv.rdssocialtv            # RDS Social TV preload
 com.cbs.ca                              # CBS / Paramount preload

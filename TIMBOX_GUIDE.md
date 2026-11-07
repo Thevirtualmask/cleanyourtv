@@ -36,7 +36,7 @@ Tutti i dati e lo stato iniziale del TIM Box sono salvati nella cartella locale:
 
 ---
 
-### B. Debloat di Sistema (38 pacchetti disabilitati a livello utente)
+### B. Debloat di Sistema (41 pacchetti disabilitati a livello utente)
 Nessun pacchetto è stato eliminato o disinstallato; tutti sono stati disabilitati in sicurezza tramite `pm disable-user --user 0` (reversibile al 100%):
 
 1. **Telemetria, Tracker e Servizi Operatore TIM:**
@@ -49,6 +49,8 @@ Nessun pacchetto è stato eliminato o disinstallato; tutti sono stati disabilita
    - `com.technicolor.android.BootupTraceQR`: Logger di avvio QR
    - `com.technicolor.autoperiodicreboot`: Demone di riavvio periodico forzato
    - `android.autoinstalls.config.technicolor`: Autoinstaller silenzioso di app sponsorizzate
+   - `com.technicolor.app.ota`: **ApplicationOta** (demone Technicolor di download/reinstallazione silenziosa in background dei pacchetti partner operatore; disabilitato per impedire che scarichi nuovamente le app commerciali)
+   - `timvision.setup_wizard`: Procedura di primo avvio TIMVISION (non necessaria)
 
 2. **Bloatware TIM, Giochi e Annunci:**
    - `it.telecomitalia.thefilmclub`: The Film Club
@@ -81,6 +83,7 @@ Nessun pacchetto è stato eliminato o disinstallato; tutti sono stati disabilita
    - `com.google.android.tvtutorials`: Tutorial Google TV
    - `com.google.android.tvrecommendations` & `com.google.android.leanbacklauncher.recommendations`: Righe pubblicitarie di raccomandazioni
    - `com.google.android.feedback`: Invio crash e segnalazioni
+   - `com.google.android.partnersetup`: **GooglePartnerSetup** (servizio Google che forza l'installazione delle app partner da Play Store; disabilitato per bloccare reinstallazioni tipo Apple TV)
 
 5. **Servizi essenziali conservati e intatti al 100%:**
    - **Tuner Digitale Terrestre (DVB-T) & Scansione canali**: `com.technicolor.android.dtvinput`, `com.technicolor.android.dtvscan.project`, `com.technicolor.android.cas.provider`
@@ -89,7 +92,7 @@ Nessun pacchetto è stato eliminato o disinstallato; tutti sono stati disabilita
    - **Chromecast integrato (Google Cast)**: `com.google.android.apps.mediashell`
    - **Google Play Store & Play Services**: `com.android.vending`, `com.google.android.gms`
    - **Tastiera a schermo (Gboard / LatinIME)**: `com.google.android.inputmethod.latin`
-   - **Aggiornamenti di sistema / OTA**: `timvision.upgrade`, `com.technicolor.*ota*`
+   - **Aggiornamenti di sistema / OTA Firmware**: `timvision.upgrade`, `com.technicolor.ota`, `com.technicolor.checkota`
 
 ---
 
